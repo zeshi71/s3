@@ -1,0 +1,46 @@
+trigger:
+  branches:
+    include:
+      - master
+
+pool:
+  vmImage: "ubuntu-latest"
+
+variables:
+  - group: prod
+
+steps:
+  - task: S3Upload@1
+    displayName: Create Deploy Bucket
+    inputs:
+      awsCredentials: AwsServiceConnection
+      bucketName: $(AwsBucket)
+      regionName: $(Region)
+      globExpressions: "undefined"
+      createBucket: true
+
+  - task: AWSShellScript@1
+    displayName: Package
+    inputs:
+      awsCredentials: AwsServiceConnection
+      regionName: $(Region)
+      scriptType: 'inline'
+      disableAutoCwd: true
+      inlineScript: |
+        sam build --debug \
+        --template-file template.yaml
+
+  - task: AWSShellScript@1
+    displayName: Deploy Infrastructure
+    inputs:
+      awsCredentials: AwsServiceConnection
+      regionName: $(Region)
+      scriptType: "inline"
+      inlineScript: |
+        sam deploy \
+        --template-file template.yaml \
+        --no-confirm-changeset \
+        --capabilities CAPABILITY_IAM CAPABILITY_AUTO_EXPAND \
+        --stack-name $(StackName) \
+        --s3-bucket $(AwsBucket) \
+        --s3-prefix $(StackName)
